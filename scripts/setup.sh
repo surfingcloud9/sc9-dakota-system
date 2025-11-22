@@ -17,14 +17,21 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if Docker Compose is installed
-if ! command -v docker-compose &> /dev/null; then
+# Check if Docker Compose is installed (v1 or v2)
+if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
     echo "❌ Docker Compose is not installed. Please install Docker Compose first."
     echo "Visit: https://docs.docker.com/compose/install/"
     exit 1
 fi
 
-echo "✅ Docker and Docker Compose are installed"
+# Detect which version to use
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    DOCKER_COMPOSE="docker compose"
+fi
+
+echo "✅ Docker and Docker Compose are installed ($DOCKER_COMPOSE)"
 echo ""
 
 # Check if .env file exists
@@ -211,28 +218,28 @@ echo ""
 
 # Pull Docker images
 echo "🐳 Pulling Docker images..."
-docker-compose pull
+$DOCKER_COMPOSE pull
 
 echo ""
 echo "🚀 Starting services..."
-docker-compose up -d
+$DOCKER_COMPOSE up -d
 
 echo ""
 echo "⏳ Waiting for services to be ready..."
 sleep 10
 
 # Check if services are running
-if docker-compose ps | grep -q "Up"; then
+if $DOCKER_COMPOSE ps | grep -q "Up"; then
     echo "✅ Services are running"
 else
-    echo "❌ Some services failed to start. Check logs with: docker-compose logs"
+    echo "❌ Some services failed to start. Check logs with: $DOCKER_COMPOSE logs"
     exit 1
 fi
 
 # Initialize database
 echo ""
 echo "🗄️  Initializing database..."
-docker-compose exec -T postgres psql -U $DB_POSTGRESDB_USER -d $DB_POSTGRESDB_DATABASE < scripts/init-db.sql || echo "⚠️  Database may already be initialized"
+$DOCKER_COMPOSE exec -T postgres psql -U $DB_POSTGRESDB_USER -d $DB_POSTGRESDB_DATABASE < scripts/init-db.sql || echo "⚠️  Database may already be initialized"
 
 echo ""
 echo "================================================"
@@ -252,9 +259,9 @@ echo "  4. Configure credentials in n8n (see n8n/credentials/README.md)"
 echo "  5. Test your workflows"
 echo ""
 echo "Useful commands:"
-echo "  - View logs: docker-compose logs -f"
-echo "  - Stop services: docker-compose stop"
-echo "  - Restart services: docker-compose restart"
+echo "  - View logs: $DOCKER_COMPOSE logs -f"
+echo "  - Stop services: $DOCKER_COMPOSE stop"
+echo "  - Restart services: $DOCKER_COMPOSE restart"
 echo "  - Backup: ./scripts/backup.sh"
 echo ""
 echo "================================================"

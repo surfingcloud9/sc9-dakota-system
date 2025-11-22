@@ -113,7 +113,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO sms_messages (message_sid, from_phone, to_phone, message_body, direction, timestamp) VALUES ('OUT-{{$json.timestamp}}', '{{$env.TWILIO_PHONE_NUMBER}}', '{{$json.from_phone}}', '{{$json.response_message}}', 'outbound', '{{$json.timestamp}}');",
+        "query": "INSERT INTO sms_messages (message_sid, from_phone, to_phone, message_body, direction, timestamp) VALUES ('OUT-{{$json.timestamp}}-{{$json.from_phone | replace(\"+\", \"\")}}', '{{$env.TWILIO_PHONE_NUMBER}}', '{{$json.from_phone}}', '{{$json.response_message}}', 'outbound', '{{$json.timestamp}}');",
         "options": {}
       },
       "id": "log-response",

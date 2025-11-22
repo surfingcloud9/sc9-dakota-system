@@ -15,6 +15,13 @@ echo "Dakota Phone Automation - Backup"
 echo "================================================"
 echo ""
 
+# Detect docker-compose command
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    DOCKER_COMPOSE="docker compose"
+fi
+
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
 
@@ -25,7 +32,11 @@ echo "📦 Backing up n8n workflows..."
 cp -r n8n/workflows "$BACKUP_PATH/"
 
 echo "🗄️  Backing up PostgreSQL database..."
-docker-compose exec -T postgres pg_dump -U ${DB_POSTGRESDB_USER:-n8n_user} ${DB_POSTGRESDB_DATABASE:-n8n} > "$BACKUP_PATH/database.sql"
+$DOCKER_COMPOSE exec -T postgres pg_dump -U ${DB_POSTGRESDB_USER:-n8n_user} ${DB_POSTGRESDB_DATABASE:-n8n} > "$BACKUP_PATH/database.sql" || {
+    echo "❌ Database backup failed!"
+    rm -rf "$BACKUP_PATH"
+    exit 1
+}
 
 echo "⚙️  Backing up configuration..."
 cp .env "$BACKUP_PATH/env.backup" 2>/dev/null || echo "No .env file to backup"

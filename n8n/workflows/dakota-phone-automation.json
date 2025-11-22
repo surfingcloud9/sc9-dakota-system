@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "functionCode": "// Extract call parameters from webhook\nconst contactName = $input.item.json.contact_name || 'Valued Customer';\nconst phoneNumber = $input.item.json.phone_number;\nconst callScript = $input.item.json.script || 'Hello, this is Dakota calling.';\nconst voiceId = $input.item.json.voice_id || items[0].json.$env.ELEVENLABS_VOICE_ID;\n\nreturn {\n  json: {\n    contact_name: contactName,\n    phone_number: phoneNumber,\n    call_script: callScript,\n    voice_id: voiceId,\n    call_id: `CALL-${Date.now()}`,\n    timestamp: new Date().toISOString()\n  }\n};"
+        "functionCode": "// Extract call parameters from webhook\nconst contactName = $input.item.json.contact_name || 'Valued Customer';\nconst phoneNumber = $input.item.json.phone_number;\nconst callScript = $input.item.json.script || 'Hello, this is Dakota calling.';\nconst voiceId = $input.item.json.voice_id || $env.ELEVENLABS_VOICE_ID;\n\nreturn {\n  json: {\n    contact_name: contactName,\n    phone_number: phoneNumber,\n    call_script: callScript,\n    voice_id: voiceId,\n    call_id: `CALL-${Date.now()}`,\n    timestamp: new Date().toISOString()\n  }\n};"
       },
       "id": "parse-request",
       "name": "Parse Request",
