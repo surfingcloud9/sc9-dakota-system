@@ -1,0 +1,76 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# n8n data
+.n8n/
+
+# Database files
+*.sql
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Backups
+backups/*.tar.gz
+backups/*.sql
+backups/dakota-backup-*/
+
+# SSL certificates
+deployment/nginx/ssl/*.pem
+deployment/nginx/ssl/*.key
+deployment/nginx/ssl/*.crt
+*.pem
+*.key
+*.crt
+
+# Docker volumes
+.docker/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts
+dist/
+build/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Terraform state (if used)
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Secrets
+secrets/
+*.secret
+
+# Local development
+.local/

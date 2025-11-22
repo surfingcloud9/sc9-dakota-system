@@ -1,0 +1,291 @@
+{
+  "name": "Incoming Call Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "twilio-incoming",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "incoming-webhook",
+      "name": "Twilio Incoming Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "twilio-incoming-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse Twilio webhook data\nconst callSid = $input.item.json.CallSid;\nconst from = $input.item.json.From;\nconst to = $input.item.json.To;\nconst callStatus = $input.item.json.CallStatus;\n\nreturn {\n  json: {\n    call_sid: callSid,\n    caller_phone: from,\n    receiving_phone: to,\n    call_status: callStatus,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "parse-incoming",
+      "name": "Parse Incoming Call",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM contacts WHERE phone_number = '{{$json.caller_phone}}' LIMIT 1;",
+        "options": {}
+      },
+      "id": "lookup-caller",
+      "name": "Lookup Caller",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.length}}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-known-caller",
+      "name": "Check Known Caller",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate greeting for known caller\nconst callerName = $input.item.json[0]?.name || 'Valued Customer';\nconst greeting = `Hello ${callerName}, welcome back! This is Dakota. How can I assist you today?`;\n\nreturn {\n  json: {\n    greeting_text: greeting,\n    caller_name: callerName,\n    is_known: true\n  }\n};"
+      },
+      "id": "known-caller-greeting",
+      "name": "Known Caller Greeting",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate greeting for unknown caller\nconst greeting = 'Hello! Thank you for calling Dakota. To better assist you, could you please state your name and the reason for your call?';\n\nreturn {\n  json: {\n    greeting_text: greeting,\n    caller_name: 'Unknown',\n    is_known: false\n  }\n};"
+      },
+      "id": "unknown-caller-greeting",
+      "name": "Unknown Caller Greeting",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/={{$env.ELEVENLABS_VOICE_ID}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "={{$env.ELEVENLABS_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{$json.greeting_text}}"
+            },
+            {
+              "name": "model_id",
+              "value": "eleven_monolingual_v1"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "generate-greeting-audio",
+      "name": "Generate Greeting Audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate TwiML response for call handling\nconst audioUrl = $json.audio_url || '';\nconst twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say voice=\"Polly.Joanna\">{{$json.greeting_text}}</Say>\n  <Gather input=\"speech\" action=\"${process.env.WEBHOOK_URL}/webhook/ivr-response\" method=\"POST\" timeout=\"5\" speechTimeout=\"auto\">\n    <Say>Please tell me how I can help you.</Say>\n  </Gather>\n  <Say>Thank you. We'll process your request and get back to you shortly.</Say>\n  <Hangup/>\n</Response>`;\n\nreturn {\n  json: {\n    twiml: twiml,\n    content_type: 'text/xml'\n  }\n};"
+      },
+      "id": "generate-twiml",
+      "name": "Generate TwiML Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO incoming_calls (call_sid, caller_phone, caller_name, is_known, timestamp) VALUES ('{{$json.call_sid}}', '{{$json.caller_phone}}', '{{$json.caller_name}}', {{$json.is_known}}, '{{$json.timestamp}}');",
+        "options": {}
+      },
+      "id": "log-incoming-call",
+      "name": "Log Incoming Call",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1650, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{$json.twiml}}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-twiml",
+      "name": "Respond with TwiML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    }
+  ],
+  "connections": {
+    "Twilio Incoming Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Incoming Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Incoming Call": {
+      "main": [
+        [
+          {
+            "node": "Lookup Caller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Caller": {
+      "main": [
+        [
+          {
+            "node": "Check Known Caller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Known Caller": {
+      "main": [
+        [
+          {
+            "node": "Known Caller Greeting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unknown Caller Greeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known Caller Greeting": {
+      "main": [
+        [
+          {
+            "node": "Generate Greeting Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unknown Caller Greeting": {
+      "main": [
+        [
+          {
+            "node": "Generate Greeting Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Greeting Audio": {
+      "main": [
+        [
+          {
+            "node": "Generate TwiML Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate TwiML Response": {
+      "main": [
+        [
+          {
+            "node": "Log Incoming Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Incoming Call": {
+      "main": [
+        [
+          {
+            "node": "Respond with TwiML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-22T18:20:00.000Z",
+  "versionId": "1"
+}

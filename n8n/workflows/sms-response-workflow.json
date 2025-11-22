@@ -1,0 +1,277 @@
+{
+  "name": "SMS Response Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sms-received",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "sms-webhook",
+      "name": "SMS Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "sms-received-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse incoming SMS data\nconst from = $input.item.json.From || $input.item.json.from;\nconst to = $input.item.json.To || $input.item.json.to;\nconst body = $input.item.json.Body || $input.item.json.message || $input.item.json.body;\nconst messageSid = $input.item.json.MessageSid || $input.item.json.message_id || `SMS-${Date.now()}`;\n\nreturn {\n  json: {\n    message_sid: messageSid,\n    from_phone: from,\n    to_phone: to,\n    message_body: body,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "parse-sms",
+      "name": "Parse SMS Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sms_messages (message_sid, from_phone, to_phone, message_body, direction, timestamp) VALUES ('{{$json.message_sid}}', '{{$json.from_phone}}', '{{$json.to_phone}}', '{{$json.message_body}}', 'inbound', '{{$json.timestamp}}');",
+        "options": {}
+      },
+      "id": "log-sms",
+      "name": "Log Incoming SMS",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Analyze message content and determine response\nconst message = $input.item.json.message_body.toLowerCase();\nlet response = '';\nlet action = 'general';\n\nif (message.includes('help') || message.includes('info')) {\n  response = 'Thank you for contacting Dakota! For assistance, please call us or reply with your specific question. We are here to help!';\n  action = 'help_request';\n} else if (message.includes('stop') || message.includes('unsubscribe')) {\n  response = 'You have been unsubscribed from Dakota messages. Reply START to opt back in.';\n  action = 'unsubscribe';\n} else if (message.includes('start') || message.includes('subscribe')) {\n  response = 'Welcome back! You are now subscribed to Dakota updates.';\n  action = 'subscribe';\n} else if (message.includes('appointment') || message.includes('schedule')) {\n  response = 'To schedule an appointment, please call us or visit our website. We look forward to serving you!';\n  action = 'appointment_request';\n} else if (message.includes('yes') || message.includes('confirm')) {\n  response = 'Great! Your confirmation has been received. Thank you!';\n  action = 'confirmation';\n} else if (message.includes('no') || message.includes('cancel')) {\n  response = 'Understood. Your request has been cancelled. Let us know if you need anything else.';\n  action = 'cancellation';\n} else {\n  response = 'Thank you for your message! A Dakota representative will review your message and respond shortly.';\n  action = 'general';\n}\n\nreturn {\n  json: {\n    original_message: $input.item.json.message_body,\n    response_message: response,\n    action_type: action,\n    from_phone: $input.item.json.from_phone\n  }\n};"
+      },
+      "id": "analyze-message",
+      "name": "Analyze Message",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.action_type}}",
+              "operation": "notEqual",
+              "value2": "unsubscribe"
+            }
+          ]
+        }
+      },
+      "id": "check-not-unsubscribed",
+      "name": "Check Not Unsubscribed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.TEXTINGBIZ_API_URL}}/sms/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ={{$env.TEXTINGBIZ_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "to",
+              "value": "={{$json.from_phone}}"
+            },
+            {
+              "name": "message",
+              "value": "={{$json.response_message}}"
+            },
+            {
+              "name": "from",
+              "value": "={{$env.TWILIO_PHONE_NUMBER}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-sms-response",
+      "name": "Send SMS Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sms_messages (message_sid, from_phone, to_phone, message_body, direction, timestamp) VALUES ('OUT-{{$json.timestamp}}-{{$json.from_phone | replace(\"+\", \"\")}}', '{{$env.TWILIO_PHONE_NUMBER}}', '{{$json.from_phone}}', '{{$json.response_message}}', 'outbound', '{{$json.timestamp}}');",
+        "options": {}
+      },
+      "id": "log-response",
+      "name": "Log Response",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE contacts SET sms_opt_in = false WHERE phone_number = '{{$json.from_phone}}';",
+        "options": {}
+      },
+      "id": "update-opt-out",
+      "name": "Update Opt-Out",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1250, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"SMS processed successfully\", \"action\": $json.action_type } }}"
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"User unsubscribed\", \"action\": \"unsubscribe\" } }}"
+      },
+      "id": "unsubscribe-response",
+      "name": "Unsubscribe Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    }
+  ],
+  "connections": {
+    "SMS Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse SMS Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse SMS Data": {
+      "main": [
+        [
+          {
+            "node": "Log Incoming SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Incoming SMS": {
+      "main": [
+        [
+          {
+            "node": "Analyze Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Message": {
+      "main": [
+        [
+          {
+            "node": "Check Not Unsubscribed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Not Unsubscribed": {
+      "main": [
+        [
+          {
+            "node": "Send SMS Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS Response": {
+      "main": [
+        [
+          {
+            "node": "Log Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Response": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Opt-Out": {
+      "main": [
+        [
+          {
+            "node": "Unsubscribe Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-22T18:20:00.000Z",
+  "versionId": "1"
+}

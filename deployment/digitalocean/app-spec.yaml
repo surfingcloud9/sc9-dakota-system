@@ -1,0 +1,134 @@
+name: dakota-phone-automation
+region: nyc
+services:
+  - name: n8n
+    github:
+      repo: surfingcloud9/sc9-dakota-system
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile
+    http_port: 5678
+    instance_count: 1
+    instance_size_slug: basic-xs
+    routes:
+      - path: /
+    health_check:
+      http_path: /healthz
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: N8N_BASIC_AUTH_ACTIVE
+        value: "true"
+      - key: N8N_BASIC_AUTH_USER
+        value: "${N8N_BASIC_AUTH_USER}"
+      - key: N8N_BASIC_AUTH_PASSWORD
+        value: "${N8N_BASIC_AUTH_PASSWORD}"
+        type: SECRET
+      - key: N8N_HOST
+        value: "${APP_DOMAIN}"
+      - key: N8N_PROTOCOL
+        value: "https"
+      - key: N8N_PORT
+        value: "5678"
+      - key: WEBHOOK_URL
+        value: "https://${APP_DOMAIN}"
+      - key: DB_TYPE
+        value: "postgresdb"
+      - key: DB_POSTGRESDB_HOST
+        value: "${db.HOSTNAME}"
+      - key: DB_POSTGRESDB_PORT
+        value: "${db.PORT}"
+      - key: DB_POSTGRESDB_DATABASE
+        value: "${db.DATABASE}"
+      - key: DB_POSTGRESDB_USER
+        value: "${db.USERNAME}"
+      - key: DB_POSTGRESDB_PASSWORD
+        value: "${db.PASSWORD}"
+        type: SECRET
+      - key: QUEUE_BULL_REDIS_HOST
+        value: "${redis.HOSTNAME}"
+      - key: QUEUE_BULL_REDIS_PORT
+        value: "${redis.PORT}"
+      - key: EXECUTIONS_MODE
+        value: "queue"
+      - key: N8N_METRICS
+        value: "true"
+      - key: ELEVENLABS_API_KEY
+        value: "${ELEVENLABS_API_KEY}"
+        type: SECRET
+      - key: ELEVENLABS_VOICE_ID
+        value: "${ELEVENLABS_VOICE_ID}"
+      - key: TWILIO_ACCOUNT_SID
+        value: "${TWILIO_ACCOUNT_SID}"
+        type: SECRET
+      - key: TWILIO_AUTH_TOKEN
+        value: "${TWILIO_AUTH_TOKEN}"
+        type: SECRET
+      - key: TWILIO_PHONE_NUMBER
+        value: "${TWILIO_PHONE_NUMBER}"
+      - key: TEXTINGBIZ_API_KEY
+        value: "${TEXTINGBIZ_API_KEY}"
+        type: SECRET
+      - key: TEXTINGBIZ_API_URL
+        value: "${TEXTINGBIZ_API_URL}"
+
+  - name: n8n-worker
+    github:
+      repo: surfingcloud9/sc9-dakota-system
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile
+    run_command: worker
+    instance_count: 1
+    instance_size_slug: basic-xs
+    envs:
+      - key: DB_TYPE
+        value: "postgresdb"
+      - key: DB_POSTGRESDB_HOST
+        value: "${db.HOSTNAME}"
+      - key: DB_POSTGRESDB_PORT
+        value: "${db.PORT}"
+      - key: DB_POSTGRESDB_DATABASE
+        value: "${db.DATABASE}"
+      - key: DB_POSTGRESDB_USER
+        value: "${db.USERNAME}"
+      - key: DB_POSTGRESDB_PASSWORD
+        value: "${db.PASSWORD}"
+        type: SECRET
+      - key: QUEUE_BULL_REDIS_HOST
+        value: "${redis.HOSTNAME}"
+      - key: QUEUE_BULL_REDIS_PORT
+        value: "${redis.PORT}"
+      - key: EXECUTIONS_MODE
+        value: "queue"
+
+databases:
+  - name: db
+    engine: PG
+    version: "15"
+    production: true
+    cluster_name: dakota-postgres
+    db_name: n8n
+    db_user: n8n_user
+
+  - name: redis
+    engine: REDIS
+    version: "7"
+    production: true
+    cluster_name: dakota-redis
+
+domain:
+  domain: your-domain.com
+  type: DEFAULT
+  zone: your-domain.com
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+  - rule: CPU_UTILIZATION
+    value: 80
+  - rule: MEM_UTILIZATION
+    value: 80
