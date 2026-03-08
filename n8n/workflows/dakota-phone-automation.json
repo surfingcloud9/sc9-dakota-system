@@ -57,6 +57,7 @@
           ]
         },
         "options": {
+          "timeout": 30000,
           "response": {
             "response": {
               "responseFormat": "file"
@@ -126,8 +127,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO call_logs (call_id, contact_name, phone_number, status, duration, recording_url, timestamp, success) VALUES ('{{$json.call_id}}', '{{$json.contact_name}}', '{{$json.phone_number}}', '{{$json.status}}', {{$json.duration}}, '{{$json.recording_url}}', '{{$json.timestamp}}', {{$json.success}});",
-        "options": {}
+        "query": "INSERT INTO call_logs (call_id, contact_name, phone_number, status, duration, recording_url, timestamp, success) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);",
+        "options": {
+          "queryParams": "={{JSON.stringify([$json.call_id, $json.contact_name, $json.phone_number, $json.status, $json.duration, $json.recording_url, $json.timestamp, $json.success])}}"
+        }
       },
       "id": "store-call-log",
       "name": "Store Call Log",
@@ -172,7 +175,9 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "send-followup-sms",
       "name": "Send Follow-up SMS",

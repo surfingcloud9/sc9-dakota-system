@@ -28,8 +28,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO sms_messages (message_sid, from_phone, to_phone, message_body, direction, timestamp) VALUES ('{{$json.message_sid}}', '{{$json.from_phone}}', '{{$json.to_phone}}', '{{$json.message_body}}', 'inbound', '{{$json.timestamp}}');",
-        "options": {}
+        "query": "INSERT INTO sms_messages (message_sid, from_phone, to_phone, message_body, direction, timestamp) VALUES ($1, $2, $3, $4, 'inbound', $5);",
+        "options": {
+          "queryParams": "={{JSON.stringify([$json.message_sid, $json.from_phone, $json.to_phone, $json.message_body, $json.timestamp])}}"
+        }
       },
       "id": "log-sms",
       "name": "Log Incoming SMS",
@@ -102,7 +104,9 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "send-sms-response",
       "name": "Send SMS Response",
@@ -113,8 +117,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO sms_messages (message_sid, from_phone, to_phone, message_body, direction, timestamp) VALUES ('OUT-{{$json.timestamp}}-{{$json.from_phone | replace(\"+\", \"\")}}', '{{$env.TWILIO_PHONE_NUMBER}}', '{{$json.from_phone}}', '{{$json.response_message}}', 'outbound', '{{$json.timestamp}}');",
-        "options": {}
+        "query": "INSERT INTO sms_messages (message_sid, from_phone, to_phone, message_body, direction, timestamp) VALUES ($1, $2, $3, $4, 'outbound', $5);",
+        "options": {
+          "queryParams": "={{JSON.stringify(['OUT-' + $json.timestamp + '-' + $json.from_phone.replace(/\\+/g, ''), $env.TWILIO_PHONE_NUMBER, $json.from_phone, $json.response_message, $json.timestamp])}}"
+        }
       },
       "id": "log-response",
       "name": "Log Response",
@@ -131,8 +137,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE contacts SET sms_opt_in = false WHERE phone_number = '{{$json.from_phone}}';",
-        "options": {}
+        "query": "UPDATE contacts SET sms_opt_in = false WHERE phone_number = $1;",
+        "options": {
+          "queryParams": "={{JSON.stringify([$json.from_phone])}}"
+        }
       },
       "id": "update-opt-out",
       "name": "Update Opt-Out",

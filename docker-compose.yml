@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:1.65.0
     container_name: dakota-n8n
     restart: unless-stopped
     ports:
@@ -37,9 +37,13 @@ services:
         condition: service_healthy
     networks:
       - dakota-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   n8n-worker:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:1.65.0
     container_name: dakota-n8n-worker
     restart: unless-stopped
     command: worker
@@ -53,6 +57,7 @@ services:
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
       - EXECUTIONS_MODE=queue
+      - N8N_CONCURRENCY_PRODUCTION_LIMIT=5
       - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
       - GENERIC_TIMEZONE=${TIMEZONE:-America/New_York}
     volumes:
@@ -64,6 +69,10 @@ services:
         condition: service_healthy
     networks:
       - dakota-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   postgres:
     image: postgres:15-alpine

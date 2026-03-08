@@ -28,8 +28,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT * FROM contacts WHERE phone_number = '{{$json.caller_phone}}' LIMIT 1;",
-        "options": {}
+        "query": "SELECT * FROM contacts WHERE phone_number = $1 LIMIT 1;",
+        "options": {
+          "queryParams": "={{JSON.stringify([$json.caller_phone])}}"
+        }
       },
       "id": "lookup-caller",
       "name": "Lookup Caller",
@@ -109,6 +111,7 @@
           ]
         },
         "options": {
+          "timeout": 30000,
           "response": {
             "response": {
               "responseFormat": "file"
@@ -135,8 +138,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO incoming_calls (call_sid, caller_phone, caller_name, is_known, timestamp) VALUES ('{{$json.call_sid}}', '{{$json.caller_phone}}', '{{$json.caller_name}}', {{$json.is_known}}, '{{$json.timestamp}}');",
-        "options": {}
+        "query": "INSERT INTO incoming_calls (call_sid, caller_phone, caller_name, is_known, timestamp) VALUES ($1, $2, $3, $4, $5);",
+        "options": {
+          "queryParams": "={{JSON.stringify([$json.call_sid, $json.caller_phone, $json.caller_name, $json.is_known, $json.timestamp])}}"
+        }
       },
       "id": "log-incoming-call",
       "name": "Log Incoming Call",
