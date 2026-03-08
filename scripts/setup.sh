@@ -226,7 +226,24 @@ $DOCKER_COMPOSE up -d
 
 echo ""
 echo "⏳ Waiting for services to be ready..."
-sleep 10
+
+MAX_WAIT=60
+WAIT_INTERVAL=5
+ELAPSED=0
+SERVICE_READY=false
+
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+    if $DOCKER_COMPOSE exec -T postgres pg_isready -U "${DB_POSTGRESDB_USER}" -q 2>/dev/null; then
+        SERVICE_READY=true
+        break
+    fi
+    sleep $WAIT_INTERVAL
+    ELAPSED=$((ELAPSED + WAIT_INTERVAL))
+done
+
+if [ "$SERVICE_READY" = false ]; then
+    echo "⚠️  Database readiness check timed out after ${MAX_WAIT}s. Proceeding anyway..."
+fi
 
 # Check if services are running
 if $DOCKER_COMPOSE ps | grep -q "Up"; then
